@@ -211,15 +211,15 @@
 <!-- API Key Modal -->
 <div class="modal hidden" id="keyModal">
   <div class="modal-box">
-    <div class="modal-ttl">🔑 設定 FMP API Key</div>
+    <div class="modal-ttl">🔑 設定 Finnhub API Key</div>
     <div class="modal-desc">
-      請輸入您的 Financial Modeling Prep API Key。<br>
+      請輸入您的 Finnhub API Key。<br>
       Key 只儲存在您的裝置本地，不會上傳到任何伺服器。
     </div>
     <input class="modal-inp" id="keyInp" type="text" placeholder="輸入您的 API Key...">
     <button class="modal-cta" onclick="saveKey()">開始使用</button>
-    <a class="modal-link" href="https://financialmodelingprep.com" target="_blank">
-      還沒有 Key？點這裡免費申請 →
+    <a class="modal-link" href="https://finnhub.io/register" target="_blank">
+      還沒有 Key？到 finnhub.io 免費申請 →
     </a>
   </div>
 </div>
@@ -230,7 +230,7 @@
 // ─────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────
-const FMP = 'https://financialmodelingprep.com/stable'
+const FINN = 'https://finnhub.io/api/v1'
 
 // ─────────────────────────────────────────
 // STATE
@@ -270,40 +270,6 @@ function colorKey(days) {
 }
 
 // ─────────────────────────────────────────
-// ERROR DETECTION
-// ─────────────────────────────────────────
-
-// 只有真的 Key 無效才回傳 true，rate limit 等其他錯誤不算
-function isAuthError(res) {
-  if (Array.isArray(res)) return false
-  const msg = (res?.['Error Message'] || res?.message || '').toLowerCase()
-  return msg.includes('invalid api key')
-}
-
-// 取得 FMP 錯誤訊息的人類可讀版本
-function fmpErrorMsg(res) {
-  if (Array.isArray(res)) return null
-  const raw = res?.['Error Message'] || res?.message || null
-  if (!raw) return null
-  if (raw.toLowerCase().includes('limit reach'))   return '已達今日 API 呼叫上限（250次），明天再試'
-  if (raw.toLowerCase().includes('special endpo')) return '此 endpoint 需要付費方案'
-  return raw
-}
-
-// ─────────────────────────────────────────
-// FIND NEXT EARNINGS DATE
-// 使用 historical/earning_calendar（免費方案可用）
-// ─────────────────────────────────────────
-function findNextEarnings(entries) {
-  if (!Array.isArray(entries) || entries.length === 0) return null
-  const today = isoToday()
-  const upcoming = entries
-    .filter(e => e.date && e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-  return upcoming[0]?.date || null
-}
-
-// ─────────────────────────────────────────
 // TOAST / MODAL / LOADING
 // ─────────────────────────────────────────
 let tTimer
@@ -325,7 +291,8 @@ function setBusy(v) {
 }
 
 // ─────────────────────────────────────────
-// FETCH DATA
+// FETCH DATA（Finnhub 免費版）
+// 每分鐘 60 次呼叫上限，個人使用完全夠用
 // ─────────────────────────────────────────
 async function fetchData(force = false) {
   const apiKey = ls.get('apiKey')
@@ -346,47 +313,66 @@ async function fetchData(force = false) {
     setBusy(true)
     renderSkeleton()
 
-    // ── 1. 批次取得股價（一次呼叫）──
-    // ── 1. 批次取得股價（stable 新格式：?symbol= 查詢參數）──
-    const qRes   = await fetch(`${FMP}/quote?symbol=${list.join(',')}&apikey=${apiKey}`)
-    const quotes = await qRes.json()
+    const nameCache = ls.get('nameCache') || {}
 
-    // Key 真的錯了 → 清除並跳回設定
-    if (isAuthError(quotes)) {
-      ls.remove('apiKey')
-      showEl('keyModal')
-      throw new Error('API Key 無效，請重新輸入')
-    }
+    // ── 1. 股價：每支股票一次，全部平行發出 ──
+    // Finnhub quote response: { c: currentPrice, dp: changePercent% }
+    const quotePromises = list.map(sym =>
+      fetch(`${FINN}/quote?symbol=${sym}&token=${apiKey}`)
+        .then(async r => {
+          if (r.status === 401 || r.status === 403) throw new Error('AUTH')
+          const d = await r.json()
+          return { sym, price: d.c || null, chg: d.dp ?? null }
+        })
+        .catch(e => {
+          if (e.message === 'AUTH') throw e
+          return { sym, price: null, chg: null }
+        })
+    )
 
-    // 其他 API 錯誤 → 顯示訊息但保留 Key
-    if (!Array.isArray(quotes)) {
-      throw new Error(fmpErrorMsg(quotes) || '股價資料取得失敗')
-    }
+    // ── 2. 財報日曆：一次取 90 天，client 端過濾清單內的股票 ──
+    const earningsPromise = fetch(
+      `${FINN}/calendar/earnings?from=${isoToday()}&to=${isoAhead(90)}&token=${apiKey}`
+    ).then(r => r.ok ? r.json() : { earningsCalendar: [] })
+     .catch(() => ({ earningsCalendar: [] }))
 
-    // ── 2. 財報日曆（stable 新 endpoint，一次取 90 天所有公司）──
-    const today   = isoToday()
-    const ahead90 = isoAhead(90)
-    const eRes    = await fetch(`${FMP}/earnings-calendar?from=${today}&to=${ahead90}&apikey=${apiKey}`)
-    const earns   = eRes.ok ? await eRes.json() : []
+    // ── 3. 公司名稱：只抓還沒快取的新股票 ──
+    const newSyms = list.filter(s => !nameCache[s])
+    const namePromises = newSyms.map(sym =>
+      fetch(`${FINN}/stock/profile2?symbol=${sym}&token=${apiKey}`)
+        .then(r => r.json())
+        .then(d => ({ sym, name: d.name || sym }))
+        .catch(() => ({ sym, name: sym }))
+    )
 
-    // 建立 symbol → 最近財報日期 map（只留追蹤清單內的股票）
+    // 全部平行等待
+    const [quotes, earningsRes, names] = await Promise.all([
+      Promise.all(quotePromises),
+      earningsPromise,
+      Promise.all(namePromises)
+    ])
+
+    // 更新公司名稱快取（永久保存，不隨每日快取刷新）
+    names.forEach(({ sym, name }) => { nameCache[sym] = name })
+    ls.set('nameCache', nameCache)
+
+    // 建立 earnings map: symbol → 最近財報日期
     const eMap = {}
-    if (Array.isArray(earns)) {
-      earns.forEach(e => {
-        if (list.includes(e.symbol)) {
-          if (!eMap[e.symbol] || e.date < eMap[e.symbol]) eMap[e.symbol] = e.date
-        }
-      })
-    }
+    const calendar = earningsRes?.earningsCalendar || []
+    calendar.forEach(e => {
+      if (list.includes(e.symbol)) {
+        if (!eMap[e.symbol] || e.date < eMap[e.symbol]) eMap[e.symbol] = e.date
+      }
+    })
 
-    // ── 3. 合併資料（stable API 欄位：changePercentage，無 's'）──
+    // 合併所有資料
     const fresh = {}
-    quotes.forEach(q => {
-      fresh[q.symbol] = {
-        name:  q.name,
-        price: q.price,
-        chg:   q.changePercentage,
-        earn:  eMap[q.symbol] || null
+    quotes.forEach(({ sym, price, chg }) => {
+      fresh[sym] = {
+        name:  nameCache[sym] || sym,
+        price,
+        chg,
+        earn:  eMap[sym] || null
       }
     })
 
@@ -396,8 +382,14 @@ async function fetchData(force = false) {
     render()
 
   } catch (err) {
-    toast('⚠️ ' + err.message)
-    render()
+    if (err.message === 'AUTH') {
+      ls.remove('apiKey')
+      showEl('keyModal')
+      toast('⚠️ API Key 無效，請重新輸入 Finnhub Key')
+    } else {
+      toast('⚠️ ' + (err.message || '資料載入失敗'))
+      render()
+    }
   } finally {
     setBusy(false)
   }
@@ -523,7 +515,7 @@ function forceRefresh() {
 }
 
 // ─────────────────────────────────────────
-// API KEY SETTINGS
+// API KEY 設定
 // ─────────────────────────────────────────
 function openSettings() {
   document.getElementById('keyInp').value = ls.get('apiKey') || ''
@@ -544,7 +536,7 @@ document.getElementById('keyModal').addEventListener('click', function(e) {
 })
 
 // ─────────────────────────────────────────
-// NOTIFICATIONS
+// 推播通知（Phase 2 準備）
 // ─────────────────────────────────────────
 async function requestNotif() {
   if (!('Notification' in window)) { toast('此瀏覽器不支援推播通知'); return }
