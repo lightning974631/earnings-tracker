@@ -230,7 +230,7 @@
 // ─────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────
-const FMP = 'https://financialmodelingprep.com/api/v3'
+const FMP = 'https://financialmodelingprep.com/stable'
 
 // ─────────────────────────────────────────
 // STATE
@@ -346,8 +346,9 @@ async function fetchData(force = false) {
     renderSkeleton()
 
     // ── 1. 批次取得股價（一次呼叫）──
-    const qRes    = await fetch(`${FMP}/quote/${list.join(',')}?apikey=${apiKey}`)
-    const quotes  = await qRes.json()
+    // ── 1. 批次取得股價（stable 新格式：?symbol= 查詢參數）──
+    const qRes   = await fetch(`${FMP}/quote?symbol=${list.join(',')}&apikey=${apiKey}`)
+    const quotes = await qRes.json()
 
     // Key 真的錯了 → 清除並跳回設定
     if (isAuthError(quotes)) {
@@ -356,32 +357,34 @@ async function fetchData(force = false) {
       throw new Error('API Key 無效，請重新輸入')
     }
 
-    // 其他 API 錯誤（rate limit 等）→ 顯示訊息但保留 Key
+    // 其他 API 錯誤 → 顯示訊息但保留 Key
     if (!Array.isArray(quotes)) {
       throw new Error(fmpErrorMsg(quotes) || '股價資料取得失敗')
     }
 
-    // ── 2. 逐支股票取得財報日期（免費方案可用的 endpoint）──
-    //    全部平行發出，不等待順序
-    const earnsArr = await Promise.all(
-      list.map(sym =>
-        fetch(`${FMP}/historical/earning_calendar/${sym}?limit=10&apikey=${apiKey}`)
-          .then(r => r.ok ? r.json() : [])
-          .then(entries => ({ sym, date: findNextEarnings(entries) }))
-          .catch(() => ({ sym, date: null }))
-      )
-    )
+    // ── 2. 財報日曆（stable 新 endpoint，一次取 90 天所有公司）──
+    const today   = isoToday()
+    const ahead90 = isoAhead(90)
+    const eRes    = await fetch(`${FMP}/earnings-calendar?from=${today}&to=${ahead90}&apikey=${apiKey}`)
+    const earns   = eRes.ok ? await eRes.json() : []
 
+    // 建立 symbol → 最近財報日期 map（只留追蹤清單內的股票）
     const eMap = {}
-    earnsArr.forEach(({ sym, date }) => { eMap[sym] = date })
+    if (Array.isArray(earns)) {
+      earns.forEach(e => {
+        if (list.includes(e.symbol)) {
+          if (!eMap[e.symbol] || e.date < eMap[e.symbol]) eMap[e.symbol] = e.date
+        }
+      })
+    }
 
-    // ── 3. 合併資料 ──
+    // ── 3. 合併資料（stable API 欄位：changePercentage，無 's'）──
     const fresh = {}
     quotes.forEach(q => {
       fresh[q.symbol] = {
         name:  q.name,
         price: q.price,
-        chg:   q.changesPercentage,
+        chg:   q.changePercentage,
         earn:  eMap[q.symbol] || null
       }
     })
