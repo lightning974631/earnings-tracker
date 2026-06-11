@@ -28,6 +28,7 @@
       display: flex; align-items: center; gap: 10px;
       position: sticky; top: 0; z-index: 100;
       border-bottom: 0.5px solid rgba(0,0,0,0.12);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
     }
     .hd-icon { font-size: 22px; }
     .hd-title { flex: 1; font-size: 19px; font-weight: 700; color: #1C1C1E; }
@@ -41,7 +42,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── CONTENT ── */
-    .content { padding: 14px 16px 0; max-width: 480px; margin: 0 auto; }
+    .content { padding: 20px 16px 0; max-width: 480px; margin: 0 auto; }
 
     /* ── ADD ROW ── */
     .add-row { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -300,7 +301,27 @@ function isAuthError(res) {
 }
 
 // ─────────────────────────────────────────
-// FETCH DATA（FMP 免費版）
+// ─────────────────────────────────────────
+// YAHOO FINANCE 備援（Finnhub 找不到時自動補上）
+// corsproxy.io 繞過 CORS，免費無需 Key
+// ─────────────────────────────────────────
+async function fetchYahooEarnings(sym) {
+  try {
+    const target = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${sym}?modules=calendarEvents`
+    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(target)}`)
+    if (!res.ok) return null
+    const json = await res.json()
+    const dates = json?.quoteSummary?.result?.[0]?.calendarEvents?.earnings?.earningsDate
+    if (!Array.isArray(dates) || dates.length === 0) return null
+    const today = isoToday()
+    const upcoming = dates.map(d => d.fmt).filter(d => d && d >= today).sort()
+    return upcoming[0] || null
+  } catch {
+    return null
+  }
+}
+
+// FETCH DATA（Finnhub + Yahoo Finance 備援）
 // 使用 /stable/profile（EOD 收盤價 + 公司名稱）
 // 使用 /stable/earnings-calendar（財報日曆）
 // 共 2 次 API 呼叫 / 天，遠低於 250 次上限
@@ -374,7 +395,16 @@ async function fetchData(force = false) {
       }
     })
 
-    // ── 4. 合併資料 ──
+    // ── 4. Yahoo Finance 備援：補上 Finnhub 沒有的財報日期 ──
+    const missingSyms = list.filter(sym => !eMap[sym])
+    if (missingSyms.length > 0) {
+      const yahooResults = await Promise.all(missingSyms.map(fetchYahooEarnings))
+      missingSyms.forEach((sym, i) => {
+        if (yahooResults[i]) eMap[sym] = yahooResults[i]
+      })
+    }
+
+    // ── 5. 合併資料 ──
     const fresh = {}
     quotes.forEach(({ sym, price, chg }) => {
       fresh[sym] = { name: nameCache[sym] || sym, price, chg, earn: eMap[sym] || null }
@@ -458,7 +488,7 @@ function render() {
           </div>
           <div class="days-block">
             <div class="days-num c${ck}">${dStr}</div>
-            <div class="days-lbl">${days !== null ? '距財報' : '無財報日期'}</div>
+            <div class="days-lbl">${days !== null ? '距財報' : '待公布'}</div>
             ${d.earn ? `<div class="earn-dt">${d.earn}</div>` : ''}
           </div>
         </div>
