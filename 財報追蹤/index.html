@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="財報追蹤">
+  <meta name="theme-color" content="#007AFF">
+  <title>美股財報追蹤</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+      background: #F2F2F7;
+      min-height: 100vh;
+      padding-bottom: max(env(safe-area-inset-bottom), 24px);
+    }
+
+    /* ── HEADER ── */
+    .app-header {
+      background: #fff;
+      padding: 14px 18px;
+      display: flex; align-items: center; gap: 10px;
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 0.5px solid rgba(0,0,0,0.12);
+    }
+    .hd-icon { font-size: 22px; }
+    .hd-title { flex: 1; font-size: 19px; font-weight: 700; color: #1C1C1E; }
+    .icon-btn {
+      width: 32px; height: 32px; border: none; background: transparent;
+      font-size: 18px; color: #007AFF; cursor: pointer;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    }
+    .icon-btn:active { opacity: 0.55; }
+    .icon-btn.spin { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── CONTENT ── */
+    .content { padding: 14px 16px 0; max-width: 480px; margin: 0 auto; }
+
+    /* ── ADD ROW ── */
+    .add-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .sym-inp {
+      flex: 1; padding: 11px 14px;
+      border: 1.5px solid #E5E5EA; border-radius: 12px;
+      font-size: 15px; font-weight: 500; letter-spacing: 0.5px;
+      background: #fff; outline: none; text-transform: uppercase;
+    }
+    .sym-inp:focus { border-color: #007AFF; }
+    .add-btn {
+      width: 44px; height: 44px; flex-shrink: 0;
+      background: #007AFF; color: #fff; border: none;
+      border-radius: 12px; font-size: 26px; font-weight: 300;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .add-btn:active { opacity: 0.7; }
+
+    /* ── NOTIF BANNER ── */
+    .notif-bar {
+      background: #EBF3FF; border-radius: 12px;
+      padding: 10px 14px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .notif-bar p { flex: 1; font-size: 13px; color: #1C1C1E; line-height: 1.4; }
+    .notif-bar button {
+      background: #007AFF; color: #fff; border: none;
+      border-radius: 8px; padding: 7px 14px; font-size: 13px;
+      font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+
+    /* ── LEGEND ── */
+    .legend { display: flex; gap: 14px; padding: 0 2px; margin-bottom: 14px; }
+    .leg { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #8E8E93; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .d-r { background: #FF3B30; }
+    .d-o { background: #FF9500; }
+    .d-g { background: #34C759; }
+
+    /* ── STOCK CARD ── */
+    .card {
+      background: #fff; border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .card-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 2px;
+    }
+    .sym { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; }
+    .sym.cr { color: #FF3B30; }
+    .sym.co { color: #FF9500; }
+    .sym.cg { color: #34C759; }
+    .sym.cx { color: #8E8E93; }
+    .del-btn {
+      width: 28px; height: 28px; border: none; background: transparent;
+      color: #FF3B30; opacity: 0.65; font-size: 14px;
+      cursor: pointer; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .del-btn:active { opacity: 1; background: #FFE8E8; }
+    .co-name { font-size: 12px; color: #8E8E93; margin-bottom: 10px; }
+    .card-foot { display: flex; justify-content: space-between; align-items: flex-end; }
+    .price-block { display: flex; align-items: baseline; gap: 7px; }
+    .price { font-size: 19px; font-weight: 600; color: #1C1C1E; }
+    .chg { font-size: 13px; font-weight: 500; }
+    .chg.up { color: #34C759; }
+    .chg.dn { color: #FF3B30; }
+    .days-block { text-align: right; }
+    .days-num { font-size: 28px; font-weight: 700; line-height: 1; }
+    .days-num.cr { color: #FF3B30; }
+    .days-num.co { color: #FF9500; }
+    .days-num.cg { color: #34C759; }
+    .days-num.cx { color: #C7C7CC; }
+    .days-lbl { font-size: 11px; color: #8E8E93; margin-top: 3px; }
+    .earn-dt  { font-size: 10px; color: #C7C7CC; margin-top: 2px; }
+
+    /* ── SKELETON ── */
+    .skel { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+    .skel-l {
+      background: #E5E5EA; border-radius: 4px; height: 12px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── EMPTY ── */
+    .empty { text-align: center; padding: 60px 20px; color: #8E8E93; }
+    .empty-icon { font-size: 46px; margin-bottom: 14px; }
+    .empty-title { font-size: 16px; color: #3C3C43; margin-bottom: 6px; }
+    .empty-sub { font-size: 13px; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: rgba(28,28,30,.88); color: #fff;
+      padding: 9px 18px; border-radius: 18px; font-size: 14px;
+      z-index: 9999; opacity: 0; pointer-events: none;
+      transition: opacity .25s; max-width: 88vw; text-align: center;
+    }
+    .toast.on { opacity: 1; }
+
+    /* ── MODAL ── */
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: flex; align-items: flex-end; z-index: 1000; padding: 16px;
+      padding-bottom: max(env(safe-area-inset-bottom), 16px);
+    }
+    .modal-box {
+      background: #fff; border-radius: 20px; padding: 28px 24px 24px;
+      width: 100%; max-width: 480px; margin: 0 auto;
+    }
+    .modal-ttl { font-size: 20px; font-weight: 700; color: #1C1C1E; margin-bottom: 6px; }
+    .modal-desc { font-size: 14px; color: #8E8E93; line-height: 1.5; margin-bottom: 20px; }
+    .modal-inp {
+      width: 100%; padding: 13px 14px; margin-bottom: 14px;
+      border: 1.5px solid #E5E5EA; border-radius: 12px;
+      font-size: 15px; font-family: monospace; letter-spacing: .5px; outline: none;
+    }
+    .modal-inp:focus { border-color: #007AFF; }
+    .modal-cta {
+      width: 100%; padding: 14px; background: #007AFF; color: #fff;
+      border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer;
+    }
+    .modal-link {
+      display: block; text-align: center; margin-top: 14px;
+      font-size: 13px; color: #007AFF; text-decoration: none;
+    }
+
+    /* ── UTILS ── */
+    .hidden { display: none !important; }
+    .update-ts { text-align: center; font-size: 11px; color: #C7C7CC; padding: 6px 0 4px; }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <span class="hd-icon">📊</span>
+  <h1 class="hd-title">美股財報追蹤</h1>
+  <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
+  <button class="icon-btn" id="refreshBtn" onclick="forceRefresh()" title="重新整理">↻</button>
+</header>
+
+<div class="content">
+  <div class="add-row">
+    <input class="sym-inp" id="symInp" type="text"
+      placeholder="輸入股票代碼 (例如: AAPL)"
+      maxlength="10" autocomplete="off" autocorrect="off"
+      autocapitalize="characters" spellcheck="false">
+    <button class="add-btn" onclick="handleAdd()">＋</button>
+  </div>
+
+  <div class="notif-bar" id="notifBar">
+    <p>🔔 開啟推播通知，財報前自動提醒（需加入主畫面）</p>
+    <button onclick="requestNotif()">開啟</button>
+  </div>
+
+  <div class="legend">
+    <span class="leg"><span class="dot d-r"></span>&lt;3天</span>
+    <span class="leg"><span class="dot d-o"></span>3-7天</span>
+    <span class="leg"><span class="dot d-g"></span>&gt;7天</span>
+  </div>
+
+  <div id="stockList"></div>
+  <p class="update-ts" id="updateTs"></p>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal hidden" id="keyModal">
+  <div class="modal-box">
+    <div class="modal-ttl">🔑 設定 FMP API Key</div>
+    <div class="modal-desc">
+      請輸入您的 Financial Modeling Prep API Key。<br>
+      Key 只儲存在您的裝置本地，不會上傳到任何伺服器。
+    </div>
+    <input class="modal-inp" id="keyInp" type="text" placeholder="輸入您的 API Key...">
+    <button class="modal-cta" onclick="saveKey()">開始使用</button>
+    <a class="modal-link" href="https://financialmodelingprep.com" target="_blank">
+      還沒有 Key？點這裡免費申請 →
+    </a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────
+const FMP = 'https://financialmodelingprep.com/api/v3'
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let list = []
+let data = {}
+let busy = false
+
+// ─────────────────────────────────────────
+// STORAGE
+// ─────────────────────────────────────────
+const ls = {
+  get:    k     => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
+  set:    (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} },
+  remove: k     => localStorage.removeItem(k)
+}
+
+// ─────────────────────────────────────────
+// DATE HELPERS
+// ─────────────────────────────────────────
+const isoToday = () => new Date().toISOString().split('T')[0]
+
+function daysTo(dateStr) {
+  if (!dateStr) return null
+  const now = new Date(); now.setHours(0,0,0,0)
+  const tgt = new Date(dateStr); tgt.setHours(0,0,0,0)
+  const diff = Math.round((tgt - now) / 86400000)
+  return diff >= 0 ? diff : null
+}
+
+function colorKey(days) {
+  if (days === null) return 'x'
+  if (days < 3)     return 'r'
+  if (days <= 7)    return 'o'
+  return 'g'
+}
+
+// ─────────────────────────────────────────
+// ERROR DETECTION
+// ─────────────────────────────────────────
+
+// 只有真的 Key 無效才回傳 true，rate limit 等其他錯誤不算
+function isAuthError(res) {
+  if (Array.isArray(res)) return false
+  const msg = (res?.['Error Message'] || res?.message || '').toLowerCase()
+  return msg.includes('invalid api key')
+}
+
+// 取得 FMP 錯誤訊息的人類可讀版本
+function fmpErrorMsg(res) {
+  if (Array.isArray(res)) return null
+  const raw = res?.['Error Message'] || res?.message || null
+  if (!raw) return null
+  if (raw.toLowerCase().includes('limit reach'))   return '已達今日 API 呼叫上限（250次），明天再試'
+  if (raw.toLowerCase().includes('special endpo')) return '此 endpoint 需要付費方案'
+  return raw
+}
+
+// ─────────────────────────────────────────
+// FIND NEXT EARNINGS DATE
+// 使用 historical/earning_calendar（免費方案可用）
+// ─────────────────────────────────────────
+function findNextEarnings(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return null
+  const today = isoToday()
+  const upcoming = entries
+    .filter(e => e.date && e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  return upcoming[0]?.date || null
+}
+
+// ─────────────────────────────────────────
+// TOAST / MODAL / LOADING
+// ─────────────────────────────────────────
+let tTimer
+function toast(msg) {
+  const el = document.getElementById('toast')
+  el.textContent = msg; el.classList.add('on')
+  clearTimeout(tTimer)
+  tTimer = setTimeout(() => el.classList.remove('on'), 3500)
+}
+
+const showEl = id => document.getElementById(id).classList.remove('hidden')
+const hideEl = id => document.getElementById(id).classList.add('hidden')
+
+function setBusy(v) {
+  busy = v
+  const btn = document.getElementById('refreshBtn')
+  btn.classList.toggle('spin', v)
+  btn.disabled = v
+}
+
+// ─────────────────────────────────────────
+// FETCH DATA
+// ─────────────────────────────────────────
+async function fetchData(force = false) {
+  const apiKey = ls.get('apiKey')
+  if (!apiKey) { showEl('keyModal'); return }
+  if (list.length === 0) { render(); return }
+  if (busy) return
+
+  // 今天已抓過就用快取
+  if (!force) {
+    const cache = ls.get('cache')
+    if (cache?.date === isoToday()) {
+      data = cache.data || {}
+      render(); setTs(cache.date); return
+    }
+  }
+
+  try {
+    setBusy(true)
+    renderSkeleton()
+
+    // ── 1. 批次取得股價（一次呼叫）──
+    const qRes    = await fetch(`${FMP}/quote/${list.join(',')}?apikey=${apiKey}`)
+    const quotes  = await qRes.json()
+
+    // Key 真的錯了 → 清除並跳回設定
+    if (isAuthError(quotes)) {
+      ls.remove('apiKey')
+      showEl('keyModal')
+      throw new Error('API Key 無效，請重新輸入')
+    }
+
+    // 其他 API 錯誤（rate limit 等）→ 顯示訊息但保留 Key
+    if (!Array.isArray(quotes)) {
+      throw new Error(fmpErrorMsg(quotes) || '股價資料取得失敗')
+    }
+
+    // ── 2. 逐支股票取得財報日期（免費方案可用的 endpoint）──
+    //    全部平行發出，不等待順序
+    const earnsArr = await Promise.all(
+      list.map(sym =>
+        fetch(`${FMP}/historical/earning_calendar/${sym}?limit=10&apikey=${apiKey}`)
+          .then(r => r.ok ? r.json() : [])
+          .then(entries => ({ sym, date: findNextEarnings(entries) }))
+          .catch(() => ({ sym, date: null }))
+      )
+    )
+
+    const eMap = {}
+    earnsArr.forEach(({ sym, date }) => { eMap[sym] = date })
+
+    // ── 3. 合併資料 ──
+    const fresh = {}
+    quotes.forEach(q => {
+      fresh[q.symbol] = {
+        name:  q.name,
+        price: q.price,
+        chg:   q.changesPercentage,
+        earn:  eMap[q.symbol] || null
+      }
+    })
+
+    data = fresh
+    ls.set('cache', { date: isoToday(), data: fresh })
+    setTs(isoToday())
+    render()
+
+  } catch (err) {
+    toast('⚠️ ' + err.message)
+    render()
+  } finally {
+    setBusy(false)
+  }
+}
+
+// ─────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────
+function renderSkeleton() {
+  document.getElementById('stockList').innerHTML =
+    Array(Math.min(list.length, 4)).fill('').map(() => `
+      <div class="skel">
+        <div class="skel-l" style="width:80px;margin-bottom:8px"></div>
+        <div class="skel-l" style="width:150px;margin-bottom:12px"></div>
+        <div class="skel-l" style="width:55%;height:18px"></div>
+      </div>`).join('')
+}
+
+function render() {
+  const el = document.getElementById('stockList')
+
+  if (list.length === 0) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📈</div>
+        <p class="empty-title">追蹤清單是空的</p>
+        <p class="empty-sub">輸入股票代碼開始追蹤財報日期</p>
+      </div>`
+    return
+  }
+
+  // 按距財報天數排序（最急迫在最上面，沒日期的在最下面）
+  const sorted = [...list].sort((a, b) => {
+    const da = daysTo(data[a]?.earn)
+    const db = daysTo(data[b]?.earn)
+    if (da === null && db === null) return 0
+    if (da === null) return 1
+    if (db === null) return -1
+    return da - db
+  })
+
+  el.innerHTML = sorted.map(sym => {
+    const d = data[sym]
+    if (!d) return cardPending(sym)
+
+    const days  = daysTo(d.earn)
+    const ck    = colorKey(days)
+    const up    = (d.chg ?? 0) >= 0
+    const chgStr = d.chg  != null ? `${up ? '+' : ''}${d.chg.toFixed(2)}%` : '—'
+    const pStr   = d.price != null ? `$${d.price.toFixed(2)}`               : '—'
+    const dStr   = days   !== null ? `${days} 天`                           : '—'
+
+    return `
+      <div class="card">
+        <div class="card-head">
+          <span class="sym c${ck}">${sym}</span>
+          <button class="del-btn" onclick="removeStock('${sym}')">🗑</button>
+        </div>
+        <div class="co-name">${d.name || sym}</div>
+        <div class="card-foot">
+          <div class="price-block">
+            <span class="price">${pStr}</span>
+            <span class="chg ${up ? 'up' : 'dn'}">${chgStr}</span>
+          </div>
+          <div class="days-block">
+            <div class="days-num c${ck}">${dStr}</div>
+            <div class="days-lbl">${days !== null ? '距財報' : '無財報日期'}</div>
+            ${d.earn ? `<div class="earn-dt">${d.earn}</div>` : ''}
+          </div>
+        </div>
+      </div>`
+  }).join('')
+}
+
+function cardPending(sym) {
+  return `
+    <div class="card">
+      <div class="card-head">
+        <span class="sym cx">${sym}</span>
+        <button class="del-btn" onclick="removeStock('${sym}')">🗑</button>
+      </div>
+      <div class="co-name" style="color:#C7C7CC">資料載入中...</div>
+    </div>`
+}
+
+function setTs(date) {
+  document.getElementById('updateTs').textContent = `資料日期：${date}`
+}
+
+// ─────────────────────────────────────────
+// ADD / REMOVE
+// ─────────────────────────────────────────
+function handleAdd() {
+  const inp = document.getElementById('symInp')
+  const sym = inp.value.trim().toUpperCase().replace(/[^A-Z.]/g, '')
+  if (!sym) return
+  if (!/^[A-Z]{1,5}(\.[A-Z])?$/.test(sym)) {
+    toast('請輸入有效的美股代碼（例如 AAPL、BRK.A）'); return
+  }
+  if (list.includes(sym)) {
+    toast(`${sym} 已在追蹤清單中`); inp.value = ''; return
+  }
+  list = [...list, sym]
+  ls.set('watchlist', list)
+  inp.value = ''
+  ls.remove('cache')
+  fetchData()
+}
+
+function removeStock(sym) {
+  list = list.filter(s => s !== sym)
+  ls.set('watchlist', list)
+  delete data[sym]
+  const cache = ls.get('cache')
+  if (cache?.data) { delete cache.data[sym]; ls.set('cache', cache) }
+  render()
+  toast(`已移除 ${sym}`)
+}
+
+function forceRefresh() {
+  ls.remove('cache')
+  fetchData(true)
+}
+
+// ─────────────────────────────────────────
+// API KEY SETTINGS
+// ─────────────────────────────────────────
+function openSettings() {
+  document.getElementById('keyInp').value = ls.get('apiKey') || ''
+  showEl('keyModal')
+}
+
+function saveKey() {
+  const k = document.getElementById('keyInp').value.trim()
+  if (!k || k.length < 8) { toast('請輸入有效的 API Key'); return }
+  ls.set('apiKey', k)
+  hideEl('keyModal')
+  ls.remove('cache')
+  fetchData(true)
+}
+
+document.getElementById('keyModal').addEventListener('click', function(e) {
+  if (e.target === this && ls.get('apiKey')) hideEl('keyModal')
+})
+
+// ─────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────
+async function requestNotif() {
+  if (!('Notification' in window)) { toast('此瀏覽器不支援推播通知'); return }
+  const perm = await Notification.requestPermission()
+  if (perm === 'granted') {
+    hideEl('notifBar'); ls.set('notifOk', true)
+    toast('✅ 通知已開啟！')
+  } else {
+    toast('請在瀏覽器或系統設定中允許通知')
+  }
+}
+
+// ─────────────────────────────────────────
+// SERVICE WORKER
+// ─────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.error)
+}
+
+// ─────────────────────────────────────────
+// KEYBOARD
+// ─────────────────────────────────────────
+document.getElementById('symInp').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleAdd()
+})
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+function init() {
+  list = ls.get('watchlist') || []
+
+  const notifHandled =
+    !('Notification' in window) ||
+    Notification.permission !== 'default' ||
+    ls.get('notifOk')
+  if (notifHandled) hideEl('notifBar')
+
+  if (!ls.get('apiKey')) {
+    showEl('keyModal'); hideEl('notifBar'); render(); return
+  }
+  hideEl('keyModal')
+  fetchData()
+}
+
+init()
+</script>
+</body>
+</html>
