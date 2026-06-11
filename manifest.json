@@ -1,0 +1,17 @@
+{
+  "name": "美股財報追蹤",
+  "short_name": "財報追蹤",
+  "description": "追蹤美股財報日期，不再錯過重要財報",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "lang": "zh-TW",
+  "icons": [
+    { "src": "icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
