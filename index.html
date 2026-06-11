@@ -211,15 +211,15 @@
 <!-- API Key Modal -->
 <div class="modal hidden" id="keyModal">
   <div class="modal-box">
-    <div class="modal-ttl">🔑 設定 FMP API Key</div>
+    <div class="modal-ttl">🔑 設定 Finnhub API Key</div>
     <div class="modal-desc">
-      請輸入您的 Financial Modeling Prep API Key。<br>
+      請輸入您的 Finnhub API Key。<br>
       Key 只儲存在您的裝置本地，不會上傳到任何伺服器。
     </div>
     <input class="modal-inp" id="keyInp" type="text" placeholder="輸入您的 API Key...">
     <button class="modal-cta" onclick="saveKey()">開始使用</button>
-    <a class="modal-link" href="https://financialmodelingprep.com" target="_blank">
-      還沒有 Key？點這裡免費申請 →
+    <a class="modal-link" href="https://finnhub.io/register" target="_blank">
+      還沒有 Key？到 finnhub.io 免費申請 →
     </a>
   </div>
 </div>
@@ -230,7 +230,7 @@
 // ─────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────
-const FMP = 'https://financialmodelingprep.com/stable'
+const FINN = 'https://finnhub.io/api/v1'
 
 // ─────────────────────────────────────────
 // STATE
@@ -326,46 +326,58 @@ async function fetchData(force = false) {
 
     const today   = isoToday()
     const ahead90 = isoAhead(90)
+    const nameCache = ls.get('nameCache') || {}
 
-    // ── 1. 公司 Profile（含 EOD 收盤價 + 公司名，免費）──
-    //    支援多個 symbol 以逗號分隔，只需一次呼叫
-    const profRes  = await fetch(`${FMP}/profile?symbol=${list.join(',')}&apikey=${apiKey}`)
-    const profiles = await profRes.json()
+    // ── 1. 股價：每支股票一次呼叫，全部平行發出 ──
+    // Finnhub quote: { c: price, dp: changePercent% }
+    const quotePromises = list.map(sym =>
+      fetch(`${FINN}/quote?symbol=${sym}&token=${apiKey}`)
+        .then(async r => {
+          if (r.status === 401 || r.status === 403) throw new Error('AUTH')
+          const d = await r.json()
+          return { sym, price: d.c || null, chg: d.dp ?? null }
+        })
+        .catch(e => { if (e.message === 'AUTH') throw e; return { sym, price: null, chg: null } })
+    )
 
-    // Key 真的錯了才清除
-    if (isAuthError(profiles)) {
-      ls.remove('apiKey'); showEl('keyModal')
-      throw new Error('API Key 無效，請重新輸入')
-    }
-    if (!Array.isArray(profiles)) {
-      const msg = profiles?.['Error Message'] || profiles?.message || '資料取得失敗'
-      throw new Error(msg)
-    }
+    // ── 2. 財報日曆：一次取 90 天，client 端過濾 ──
+    const earningsPromise = fetch(
+      `${FINN}/calendar/earnings?from=${today}&to=${ahead90}&token=${apiKey}`
+    ).then(r => r.ok ? r.json() : { earningsCalendar: [] })
+     .catch(() => ({ earningsCalendar: [] }))
 
-    // ── 2. 財報日曆（免費，一次取 90 天所有公司）──
-    const earnRes = await fetch(`${FMP}/earnings-calendar?from=${today}&to=${ahead90}&apikey=${apiKey}`)
-    const earns   = earnRes.ok ? await earnRes.json() : []
+    // ── 3. 公司名稱：只抓還沒快取的新股票 ──
+    const newSyms = list.filter(s => !nameCache[s])
+    const namePromises = newSyms.map(sym =>
+      fetch(`${FINN}/stock/profile2?symbol=${sym}&token=${apiKey}`)
+        .then(r => r.json())
+        .then(d => ({ sym, name: d.name || sym }))
+        .catch(() => ({ sym, name: sym }))
+    )
+
+    const [quotes, earningsRes, names] = await Promise.all([
+      Promise.all(quotePromises),
+      earningsPromise,
+      Promise.all(namePromises)
+    ])
+
+    // 更新公司名稱快取
+    names.forEach(({ sym, name }) => { nameCache[sym] = name })
+    ls.set('nameCache', nameCache)
 
     // 建立 earnings map
     const eMap = {}
-    if (Array.isArray(earns)) {
-      earns.forEach(e => {
-        if (list.includes(e.symbol)) {
-          if (!eMap[e.symbol] || e.date < eMap[e.symbol]) eMap[e.symbol] = e.date
-        }
-      })
-    }
-
-    // ── 3. 合併資料 ──
-    // FMP profile 欄位：companyName, price, changesPercentage
-    const fresh = {}
-    profiles.forEach(p => {
-      fresh[p.symbol] = {
-        name:  p.companyName || p.symbol,
-        price: p.price,
-        chg:   p.changesPercentage ?? p.changePercentage ?? null,
-        earn:  eMap[p.symbol] || null
+    const calendar = earningsRes?.earningsCalendar || []
+    calendar.forEach(e => {
+      if (list.includes(e.symbol)) {
+        if (!eMap[e.symbol] || e.date < eMap[e.symbol]) eMap[e.symbol] = e.date
       }
+    })
+
+    // ── 4. 合併資料 ──
+    const fresh = {}
+    quotes.forEach(({ sym, price, chg }) => {
+      fresh[sym] = { name: nameCache[sym] || sym, price, chg, earn: eMap[sym] || null }
     })
 
     data = fresh
@@ -374,8 +386,13 @@ async function fetchData(force = false) {
     render()
 
   } catch (err) {
-    toast('⚠️ ' + (err.message || '資料載入失敗'))
-    render()
+    if (err.message === 'AUTH') {
+      ls.remove('apiKey'); showEl('keyModal')
+      toast('⚠️ API Key 無效，請重新輸入 Finnhub Key')
+    } else {
+      toast('⚠️ ' + (err.message || '資料載入失敗'))
+      render()
+    }
   } finally {
     setBusy(false)
   }
@@ -461,7 +478,7 @@ function cardPending(sym) {
 }
 
 function setTs(date) {
-  document.getElementById('updateTs').textContent = `收盤資料日期：${date}`
+  document.getElementById('updateTs').textContent = `資料日期：${date}`
 }
 
 // ─────────────────────────────────────────
