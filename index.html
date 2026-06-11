@@ -179,6 +179,11 @@
     .stock-row { display:grid;grid-template-columns:14px 1fr 1fr 72px 26px;align-items:center;padding:9px 10px;border-bottom:0.5px solid rgba(0,0,0,0.06); }
     .stock-row:last-child { border-bottom:none; }
     .urgency-bar { width:3px;height:34px;border-radius:2px; }
+    /* Standalone color text classes */
+    .cr { color: #FF3B30; }
+    .co { color: #FF9500; }
+    .cg { color: #34C759; }
+    .cx { color: #C7C7CC; }
     .urgency-bar.cr { background:#FF3B30; }
     .urgency-bar.co { background:#FF9500; }
     .urgency-bar.cg { background:#34C759; }
@@ -198,6 +203,117 @@
     /* ── UTILS ── */
     .hidden { display: none !important; }
     .update-ts { text-align: center; font-size: 11px; color: #C7C7CC; padding: 6px 0 4px; }
+
+    /* ═══════════════════════════════════
+       GLASSMORPHISM FINTECH THEME
+       紅=3天 黃=7天 綠=8天以上
+       ═══════════════════════════════════ */
+    body {
+      background: #080C1F !important;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(150deg, #080C24 0%, #0D1548 45%, #190930 100%);
+      z-index: -1;
+    }
+    .app-header {
+      background: rgba(8,12,36,0.72) !important;
+      backdrop-filter: blur(24px) !important;
+      -webkit-backdrop-filter: blur(24px) !important;
+      border-bottom: 1px solid rgba(255,255,255,0.09) !important;
+      box-shadow: 0 1px 24px rgba(0,0,0,0.5) !important;
+    }
+    .hd-title { color: #FFFFFF !important; }
+    .icon-btn { color: rgba(160,185,255,0.75) !important; }
+    .sym-inp {
+      background: rgba(255,255,255,0.07) !important;
+      border-color: rgba(255,255,255,0.13) !important;
+      color: #FFFFFF !important;
+    }
+    .sym-inp::placeholder { color: rgba(255,255,255,0.28) !important; }
+    .sym-inp:focus { border-color: rgba(100,150,255,0.45) !important; }
+    .notif-bar {
+      background: rgba(0,100,255,0.1) !important;
+      border: 1px solid rgba(0,122,255,0.2) !important;
+    }
+    .notif-bar p { color: rgba(255,255,255,0.65) !important; }
+    .leg { color: rgba(255,255,255,0.45) !important; }
+
+    /* Color overrides: 橙色→黃色, 強化綠色 */
+    .cr { color: #FF4444 !important; }
+    .co { color: #FFD600 !important; }
+    .cg { color: #00E676 !important; }
+    .cx { color: rgba(255,255,255,0.28) !important; }
+    .sym.cr,.sym.co,.sym.cg,.sym.cx { color: inherit !important; }
+    .d-r { background: #FF4444 !important; }
+    .d-o { background: #FFD600 !important; }
+    .d-g { background: #00E676 !important; }
+
+    /* Glassmorphism list card */
+    .list-wrap {
+      background: rgba(255,255,255,0.05) !important;
+      backdrop-filter: blur(18px) !important;
+      -webkit-backdrop-filter: blur(18px) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+    }
+    .col-header { border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+    .col-header span { color: rgba(255,255,255,0.22) !important; }
+    .stock-row { border-bottom: 1px solid rgba(255,255,255,0.05) !important; }
+    .row-price { color: rgba(255,255,255,0.9) !important; }
+    .row-name { color: rgba(255,255,255,0.32) !important; }
+    .row-date { color: rgba(255,255,255,0.22) !important; }
+    .row-del { color: rgba(255,80,80,0.45) !important; }
+    .row-del:active { background: rgba(255,68,68,0.12) !important; }
+
+    /* Urgency bars with glow */
+    .urgency-bar.cr { background:#FF4444 !important; box-shadow:0 0 10px rgba(255,68,68,0.65) !important; }
+    .urgency-bar.co { background:#FFD600 !important; box-shadow:0 0 10px rgba(255,214,0,0.65) !important; }
+    .urgency-bar.cg { background:#00E676 !important; box-shadow:0 0 10px rgba(0,230,118,0.65) !important; }
+    .urgency-bar.cx { background:rgba(255,255,255,0.18) !important; box-shadow:none !important; }
+
+    .chg.up { color: #00E676 !important; }
+    .chg.dn { color: #FF4444 !important; }
+
+    /* Skeleton */
+    .skel-l { background: rgba(255,255,255,0.08) !important; }
+    .empty-icon { filter: brightness(0) invert(1) opacity(0.3); }
+    .empty-title { color: rgba(255,255,255,0.6) !important; }
+    .empty-sub { color: rgba(255,255,255,0.3) !important; }
+
+    /* Glassmorphism modal */
+    .modal {
+      background: rgba(0,0,0,0.6) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+    }
+    .modal-box {
+      background: rgba(13,22,72,0.88) !important;
+      backdrop-filter: blur(24px) !important;
+      -webkit-backdrop-filter: blur(24px) !important;
+      border: 1px solid rgba(255,255,255,0.12) !important;
+    }
+    .modal-ttl { color: #FFFFFF !important; }
+    .modal-desc { color: rgba(255,255,255,0.42) !important; }
+    .modal-inp {
+      background: rgba(255,255,255,0.08) !important;
+      border-color: rgba(255,255,255,0.14) !important;
+      color: #FFFFFF !important;
+    }
+    .modal-inp:focus { border-color: rgba(100,160,255,0.5) !important; }
+    .modal-link { color: rgba(120,170,255,0.85) !important; }
+
+    /* Toast */
+    .toast {
+      background: rgba(10,15,45,0.9) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important;
+    }
+    .update-ts { color: rgba(255,255,255,0.18) !important; }
   </style>
 </head>
 <body>
