@@ -252,6 +252,7 @@ const ls = {
 // DATE HELPERS
 // ─────────────────────────────────────────
 const isoToday = () => new Date().toISOString().split('T')[0]
+const isoAhead  = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0] }
 
 function daysTo(dateStr) {
   if (!dateStr) return null
