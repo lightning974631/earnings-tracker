@@ -200,6 +200,56 @@
     .row-date { font-size:10px;color:#C7C7CC;margin-top:1px; }
     .row-del { width:24px;height:24px;border:none;background:transparent;color:#FF3B30;opacity:0.5;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;margin:0 auto; }
     .row-del:active { opacity:1;background:#FFE8E8; }
+
+    /* ── OCR 截圖導入 ── */
+    .ocr-row { display:flex; gap:8px; margin-bottom:10px; }
+    .ocr-btn {
+      flex:1; padding:10px 8px;
+      background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.14);
+      border-radius:12px;
+      color:rgba(255,255,255,0.7);
+      font-size:13px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; gap:5px;
+      transition:all 0.2s;
+    }
+    .ocr-btn:active { background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); }
+    .ocr-btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .ocr-progress {
+      background:rgba(0,230,118,0.1);
+      border:1px solid rgba(0,230,118,0.2);
+      border-radius:10px; padding:8px 12px; margin-bottom:10px;
+      font-size:12px; color:rgba(0,230,118,0.9);
+      display:flex; align-items:center; gap:8px;
+    }
+    .ocr-spinner { animation:spin 0.8s linear infinite; display:inline-block; }
+    .ticker-grid { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+    .t-chip {
+      display:flex; align-items:center; gap:5px;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:20px; padding:7px 13px;
+      cursor:pointer; transition:all 0.2s; user-select:none;
+    }
+    .t-chip.on {
+      background:rgba(0,230,118,0.15);
+      border-color:rgba(0,230,118,0.45);
+    }
+    .t-chip span { font-size:13px; font-weight:600; color:rgba(255,255,255,0.88); }
+    .t-chip.on span { color:#00E676; }
+    .t-chip input { display:none; }
+    .ocr-acts { display:flex; gap:8px; margin-top:4px; }
+    .ocr-cancel {
+      flex:1; padding:13px; background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.15); border-radius:12px;
+      color:rgba(255,255,255,0.55); font-size:15px; cursor:pointer;
+    }
+    .ocr-add {
+      flex:2; padding:13px; background:#007AFF;
+      border:none; border-radius:12px;
+      color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+    }
+    .ocr-add:disabled { opacity:0.4; cursor:not-allowed; }
     /* ── UTILS ── */
     .hidden { display: none !important; }
     .update-ts { text-align: center; font-size: 11px; color: #C7C7CC; padding: 6px 0 4px; }
@@ -319,7 +369,27 @@
 <body>
 
 <header class="app-header">
-  <svg class="hd-icon" width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="1" y="17" width="5" height="8" rx="1.5" fill="#FF3B30"/><rect x="7.5" y="11" width="5" height="14" rx="1.5" fill="#FF9500"/><rect x="14" y="5" width="5" height="20" rx="1.5" fill="#34C759"/><rect x="20.5" y="1" width="5" height="24" rx="1.5" fill="#007AFF"/><polyline points="3.5,15 10,9 16.5,3 23,0" fill="none" stroke="rgba(0,0,0,0.15)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <svg class="hd-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="28" height="28" rx="6" fill="#080E28"/>
+      <rect width="28" height="28" rx="6" fill="url(#hg)"/>
+      <defs>
+        <linearGradient id="hg" x1="14" y1="0" x2="14" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="white" stop-opacity="0.08"/>
+          <stop offset="1" stop-color="white" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <line x1="7"  y1="22" x2="7"  y2="15" stroke="#FF4444" stroke-width="1"/>
+      <rect x="5.5" y="16.5" width="3" height="5.5" rx="0.5" fill="#FF4444"/>
+      <line x1="13" y1="20" x2="13" y2="11" stroke="#00DC6E" stroke-width="1"/>
+      <rect x="11.5" y="12.5" width="3" height="7.5" rx="0.5" fill="#00DC6E"/>
+      <line x1="19" y1="19" x2="19" y2="12" stroke="#FF4444" stroke-width="1"/>
+      <rect x="17.5" y="14" width="3" height="5" rx="0.5" fill="#FF4444"/>
+      <line x1="25" y1="14" x2="25" y2="7" stroke="#00DC6E" stroke-width="1"/>
+      <rect x="23.5" y="8" width="3" height="6" rx="0.5" fill="#00DC6E"/>
+      <line x1="3" y1="25" x2="26" y2="3" stroke="#00FF88" stroke-width="1.8" stroke-linecap="round"/>
+      <polygon points="26,3 22,5 24,8" fill="#00FF88"/>
+      <rect width="28" height="28" rx="6" fill="none" stroke="rgba(80,160,255,0.35)" stroke-width="0.8"/>
+    </svg>
   <h1 class="hd-title">美股財報追蹤</h1>
   <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
   <button class="icon-btn" id="refreshBtn" onclick="forceRefresh()" title="重新整理">↻</button>
@@ -332,6 +402,18 @@
       maxlength="10" autocomplete="off" autocorrect="off"
       autocapitalize="characters" spellcheck="false">
     <button class="add-btn" onclick="handleAdd()">＋</button>
+  </div>
+
+  <!-- OCR 截圖導入 -->
+  <div class="ocr-row">
+    <button class="ocr-btn" id="ocrCamBtn" onclick="triggerOCR('camera')">📷 拍照識別</button>
+    <button class="ocr-btn" id="ocrGalBtn" onclick="triggerOCR('gallery')">🖼️ 選擇截圖</button>
+  </div>
+  <input type="file" id="ocrCamera"  accept="image/*" capture="environment" style="display:none" onchange="handleOCRChange(this)">
+  <input type="file" id="ocrGallery" accept="image/*"                        style="display:none" onchange="handleOCRChange(this)">
+  <div class="ocr-progress hidden" id="ocrProgress">
+    <span class="ocr-spinner">◌</span>
+    <span id="ocrProgressText">OCR 辨識中...</span>
   </div>
 
   <div class="notif-bar" id="notifBar">
@@ -362,6 +444,19 @@
     <a class="modal-link" href="https://finnhub.io/register" target="_blank">
       還沒有 Key？到 finnhub.io 免費申請 →
     </a>
+  </div>
+</div>
+
+<!-- OCR 確認 Modal -->
+<div class="modal hidden" id="ocrModal">
+  <div class="modal-box">
+    <div class="modal-ttl">🔍 偵測到的股票代碼</div>
+    <div class="modal-desc">點選要加入追蹤清單的代碼（已選 <span id="ocrSelCount">0</span> 支）</div>
+    <div class="ticker-grid" id="tickerGrid"></div>
+    <div class="ocr-acts">
+      <button class="ocr-cancel" onclick="hideEl('ocrModal')">取消</button>
+      <button class="ocr-add" id="ocrAddBtn" onclick="addSelectedTickers()" disabled>加入選取</button>
+    </div>
   </div>
 </div>
 
@@ -773,6 +868,132 @@ if ('serviceWorker' in navigator) {
 document.getElementById('symInp').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleAdd()
 })
+
+
+// ─────────────────────────────────────────
+// OCR 截圖導入（Tesseract.js）
+// ─────────────────────────────────────────
+let tesseractReady = false
+
+// 過濾雜訊：排除常見非 ticker 英文縮寫
+const NOISE = new Set([
+  'THE','AND','FOR','USD','TWD','ETF','INC','CORP','LTD','LLC',
+  'NFT','API','IPO','EPS','CEO','CFO','CTO','ATH','ATL','NYSE',
+  'NASDAQ','OR','OF','IS','AT','BY','TO','IN','ON','BE','DO','GO',
+  'AM','PM','HK','US','CN','EU','GB','AU','JP','KR','TW','AI',
+  'IT','HR','PR','FY','QE','QQ','PE','PB','EV','ROE','ROI',
+  'MKT','CAP','VOL','AVG','MAX','MIN','DAY','WEEK','OPEN','HIGH','LOW',
+  'SELL','BUY','HOLD','MARK','FUND','ETF','ADR','GDR'
+])
+
+function extractTickers(text) {
+  // 匹配 1-5 個大寫英文字母（可加 .A 或 .B）
+  const raw = text.match(/\b[A-Z]{1,6}(\.[AB])?\b/g) || []
+  return [...new Set(
+    raw.filter(t => t.length >= 2 && t.length <= 6 && !NOISE.has(t))
+  )]
+}
+
+async function loadTesseract() {
+  if (tesseractReady) return
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://unpkg.com/tesseract.js@4/dist/tesseract.min.js'
+    s.onload  = () => { tesseractReady = true; resolve() }
+    s.onerror = () => reject(new Error('Tesseract.js 載入失敗'))
+    document.head.appendChild(s)
+  })
+}
+
+function triggerOCR(mode) {
+  document.getElementById(mode === 'camera' ? 'ocrCamera' : 'ocrGallery').click()
+}
+
+async function handleOCRChange(input) {
+  const file = input.files[0]
+  input.value = ''  // reset so same file can be reselected
+  if (!file) return
+
+  // 顯示進度條，禁用按鈕
+  document.getElementById('ocrCamBtn').disabled = true
+  document.getElementById('ocrGalBtn').disabled = true
+  document.getElementById('ocrProgress').classList.remove('hidden')
+  document.getElementById('ocrProgressText').textContent = '載入 OCR 引擎...'
+
+  try {
+    await loadTesseract()
+
+    document.getElementById('ocrProgressText').textContent = '辨識文字中，請稍候...'
+
+    const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round((m.progress || 0) * 100)
+          document.getElementById('ocrProgressText').textContent =
+            `辨識中 ${pct}%...`
+        }
+      }
+    })
+
+    const tickers = extractTickers(text)
+
+    if (tickers.length === 0) {
+      toast('未偵測到股票代碼，請使用更清晰的截圖')
+      return
+    }
+
+    showOCRConfirm(tickers)
+
+  } catch (err) {
+    toast('⚠️ OCR 失敗：' + (err.message || '未知錯誤'))
+  } finally {
+    document.getElementById('ocrProgress').classList.add('hidden')
+    document.getElementById('ocrCamBtn').disabled = false
+    document.getElementById('ocrGalBtn').disabled = false
+  }
+}
+
+function showOCRConfirm(tickers) {
+  const grid = document.getElementById('tickerGrid')
+  grid.innerHTML = tickers.map(t => `
+    <div class="t-chip on" onclick="toggleChip(this)" data-ticker="${t}">
+      <span>${t}</span>
+    </div>`).join('')
+
+  updateOCRCount()
+  showEl('ocrModal')
+}
+
+function toggleChip(el) {
+  el.classList.toggle('on')
+  updateOCRCount()
+}
+
+function updateOCRCount() {
+  const selected = document.querySelectorAll('#tickerGrid .t-chip.on').length
+  document.getElementById('ocrSelCount').textContent = selected
+  document.getElementById('ocrAddBtn').disabled = selected === 0
+}
+
+function addSelectedTickers() {
+  const chips = document.querySelectorAll('#tickerGrid .t-chip.on')
+  const toAdd = [...chips]
+    .map(c => c.dataset.ticker)
+    .filter(t => !list.includes(t))
+
+  if (toAdd.length === 0) {
+    toast('選取的代碼已全部在清單中了')
+    hideEl('ocrModal')
+    return
+  }
+
+  list = [...list, ...toAdd]
+  ls.set('watchlist', list)
+  ls.remove('cache')
+  hideEl('ocrModal')
+  toast(`✅ 已加入 ${toAdd.length} 支：${toAdd.join(', ')}`)
+  fetchData()
+}
 
 // ─────────────────────────────────────────
 // INIT
