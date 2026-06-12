@@ -250,6 +250,9 @@
       color:#fff; font-size:15px; font-weight:600; cursor:pointer;
     }
     .ocr-add:disabled { opacity:0.4; cursor:not-allowed; }
+    .key-label { font-size:12px; color:rgba(255,255,255,0.45); margin-bottom:5px; }
+    .key-links { display:flex; justify-content:space-between; margin-top:14px; }
+    .key-links a { font-size:12px; color:rgba(120,170,255,0.85); text-decoration:none; }
     /* ── UTILS ── */
     .hidden { display: none !important; }
     .update-ts { text-align: center; font-size: 11px; color: #C7C7CC; padding: 6px 0 4px; }
@@ -434,16 +437,17 @@
 <!-- API Key Modal -->
 <div class="modal hidden" id="keyModal">
   <div class="modal-box">
-    <div class="modal-ttl">🔑 設定 Finnhub API Key</div>
-    <div class="modal-desc">
-      請輸入您的 Finnhub API Key。<br>
-      Key 只儲存在您的裝置本地，不會上傳到任何伺服器。
+    <div class="modal-ttl">🔑 API Key 設定</div>
+    <div class="modal-desc">Key 只儲存在您的手機本地，不會上傳到任何伺服器。</div>
+    <div class="key-label">Finnhub（股價 + 財報日期）</div>
+    <input class="modal-inp" id="keyInp" type="text" placeholder="Finnhub API Key...">
+    <div class="key-label" style="margin-top:10px">OCR.space（截圖識別）</div>
+    <input class="modal-inp" id="ocrKeyInp" type="text" placeholder="OCR.space API Key...">
+    <button class="modal-cta" onclick="saveKey()">儲存</button>
+    <div class="key-links">
+      <a href="https://finnhub.io/register" target="_blank">申請 Finnhub →</a>
+      <a href="https://ocr.space/OCRAPI" target="_blank">申請 OCR.space →</a>
     </div>
-    <input class="modal-inp" id="keyInp" type="text" placeholder="輸入您的 API Key...">
-    <button class="modal-cta" onclick="saveKey()">開始使用</button>
-    <a class="modal-link" href="https://finnhub.io/register" target="_blank">
-      還沒有 Key？到 finnhub.io 免費申請 →
-    </a>
   </div>
 </div>
 
@@ -824,14 +828,17 @@ function forceRefresh() {
 // API KEY 設定
 // ─────────────────────────────────────────
 function openSettings() {
-  document.getElementById('keyInp').value = ls.get('apiKey') || ''
+  document.getElementById('keyInp').value    = ls.get('apiKey') || ''
+  document.getElementById('ocrKeyInp').value = ls.get('ocrKey') || ''
   showEl('keyModal')
 }
 
 function saveKey() {
-  const k = document.getElementById('keyInp').value.trim()
-  if (!k || k.length < 8) { toast('請輸入有效的 API Key'); return }
-  ls.set('apiKey', k)
+  const finnhubKey = document.getElementById('keyInp').value.trim()
+  const ocrKey     = document.getElementById('ocrKeyInp').value.trim()
+  if (!finnhubKey || finnhubKey.length < 8) { toast('請輸入有效的 Finnhub Key'); return }
+  ls.set('apiKey', finnhubKey)
+  if (ocrKey) ls.set('ocrKey', ocrKey)
   hideEl('keyModal')
   ls.remove('cache')
   fetchData(true)
@@ -873,7 +880,43 @@ document.getElementById('symInp').addEventListener('keydown', e => {
 // ─────────────────────────────────────────
 // OCR 截圖導入（Tesseract.js）
 // ─────────────────────────────────────────
-let tesseractReady = false
+// ─────────────────────────────────────────
+// OCR.space API（取代 Tesseract.js）
+// ─────────────────────────────────────────
+async function ocrWithSpace(imageBlob) {
+  const apiKey = ls.get('ocrKey')
+  if (!apiKey) {
+    openSettings()
+    throw new Error('請先在設定中輸入 OCR.space API Key')
+  }
+
+  const form = new FormData()
+  form.append('file', imageBlob, 'screenshot.png')
+  form.append('language', 'eng')
+  form.append('scale', 'true')
+  form.append('OCREngine', '2')       // Engine 2：準確率較高
+  form.append('isTable', 'false')
+  form.append('detectOrientation', 'false')
+
+  const res = await fetch('https://api.ocr.space/parse/image', {
+    method: 'POST',
+    headers: { 'apikey': apiKey },
+    body: form
+  })
+
+  if (!res.ok) throw new Error(`OCR API 錯誤 ${res.status}`)
+
+  const data = await res.json()
+
+  if (data.IsErroredOnProcessing) {
+    const msg = Array.isArray(data.ErrorMessage)
+      ? data.ErrorMessage.join(', ')
+      : (data.ErrorMessage || 'OCR 處理失敗')
+    throw new Error(msg)
+  }
+
+  return data.ParsedResults?.[0]?.ParsedText || ''
+}
 
 // 過濾雜訊：排除常見非 ticker 英文縮寫
 const NOISE = new Set([
@@ -928,16 +971,7 @@ function extractTickers(text) {
   )
 }
 
-async function loadTesseract() {
-  if (tesseractReady) return
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/tesseract.js@4/dist/tesseract.min.js'
-    s.onload  = () => { tesseractReady = true; resolve() }
-    s.onerror = () => reject(new Error('Tesseract.js 載入失敗'))
-    document.head.appendChild(s)
-  })
-}
+
 
 
 // Canvas 自動裁切：
@@ -986,23 +1020,12 @@ async function handleOCRChange(input) {
   document.getElementById('ocrProgressText').textContent = '載入 OCR 引擎...'
 
   try {
-    await loadTesseract()
-
-    // 自動裁切左側 40%（排除 Sparkline 和價格欄）
+    // 自動裁切：去掉頂部 15%（介面列）+ 只取左側 40%（排除 Sparkline 和價格欄）
     document.getElementById('ocrProgressText').textContent = '裁切圖片中...'
     const cropped = await cropLeft40(file)
 
-    document.getElementById('ocrProgressText').textContent = '辨識文字中，請稍候...'
-
-    const { data: { text } } = await Tesseract.recognize(cropped, 'eng', {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          const pct = Math.round((m.progress || 0) * 100)
-          document.getElementById('ocrProgressText').textContent =
-            `辨識中 ${pct}%...`
-        }
-      }
-    })
+    document.getElementById('ocrProgressText').textContent = '上傳至 OCR.space 辨識中...'
+    const text = await ocrWithSpace(cropped)
 
     const tickers = extractTickers(text)
 
