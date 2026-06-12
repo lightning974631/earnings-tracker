@@ -340,9 +340,9 @@
   </div>
 
   <div class="legend">
-    <span class="leg"><span class="dot d-r"></span>&lt;3天</span>
-    <span class="leg"><span class="dot d-o"></span>3-7天</span>
-    <span class="leg"><span class="dot d-g"></span>&gt;7天</span>
+    <span class="leg"><span class="dot d-r"></span>≤1週</span>
+    <span class="leg"><span class="dot d-o"></span>1-3週</span>
+    <span class="leg"><span class="dot d-g"></span>&gt;3週</span>
   </div>
 
   <div id="stockList"></div>
@@ -405,9 +405,9 @@ function daysTo(dateStr) {
 
 function colorKey(days) {
   if (days === null) return 'x'
-  if (days < 3)     return 'r'
-  if (days <= 7)    return 'o'
-  return 'g'
+  if (days <= 7)  return 'r'   // 紅：7天內（1週內）
+  if (days <= 21) return 'o'   // 黃：8-21天（1-3週）
+  return 'g'                   // 綠：22天以上（3週以上）
 }
 
 // ─────────────────────────────────────────
@@ -629,7 +629,10 @@ function render() {
     const up     = (d.chg ?? 0) >= 0
     const chgStr = d.chg  != null ? `${up ? '+' : ''}${d.chg.toFixed(2)}%` : '—'
     const pStr   = d.price != null ? `$${d.price.toFixed(2)}`               : '—'
-    const dStr   = days !== null ? `${days}天` : '待公布'
+    let dStr
+    if (days === null)   dStr = '待公布'
+    else if (days <= 7)  dStr = `${days}天`          // 紅色區：保留天數，強調急迫
+    else                 dStr = `${Math.round(days / 7)}週`  // 黃/綠色區：顯示週數
     const dClass = (days !== null && days >= 100) ? 'row-days small' : 'row-days'
     const dateStr = d.earn ? d.earn.slice(5) : ''
 
