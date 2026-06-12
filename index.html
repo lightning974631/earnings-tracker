@@ -887,11 +887,27 @@ const NOISE = new Set([
 ])
 
 function extractTickers(text) {
-  // 匹配 1-5 個大寫英文字母（可加 .A 或 .B）
-  const raw = text.match(/\b[A-Z]{1,6}(\.[AB])?\b/g) || []
-  return [...new Set(
-    raw.filter(t => t.length >= 2 && t.length <= 6 && !NOISE.has(t))
-  )]
+  const results = []
+  const lines = text.split('\n')
+
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) continue
+
+    // 跳過含數字的行（價格、漲跌幅）
+    if (/[\d]/.test(line)) continue
+
+    // 整行就是一個 ticker（最常見：Futu 的 ticker 單獨一行）
+    if (/^[A-Z]{2,6}(\.[AB])?$/.test(line) && !NOISE.has(line)) {
+      results.push(line); continue
+    }
+
+    // 行首是大寫英文詞（ticker 後面跟著圖示或空格）
+    const m = line.match(/^([A-Z]{2,6}(\.[AB])?)(?:\s|$)/)
+    if (m && !NOISE.has(m[1])) results.push(m[1])
+  }
+
+  return [...new Set(results)]
 }
 
 async function loadTesseract() {
@@ -902,6 +918,31 @@ async function loadTesseract() {
     s.onload  = () => { tesseractReady = true; resolve() }
     s.onerror = () => reject(new Error('Tesseract.js 載入失敗'))
     document.head.appendChild(s)
+  })
+}
+
+
+// Canvas 自動裁切：只取左側 40%，排除 Sparkline 圖和價格欄
+function cropLeft40(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const cropW = Math.floor(img.width * 0.40)
+      const canvas = document.createElement('canvas')
+      canvas.width  = cropW
+      canvas.height = img.height
+      canvas.getContext('2d').drawImage(
+        img, 0, 0, cropW, img.height, 0, 0, cropW, img.height
+      )
+      URL.revokeObjectURL(url)
+      canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error('Canvas crop 失敗')),
+        'image/png'
+      )
+    }
+    img.onerror = () => reject(new Error('圖片載入失敗'))
+    img.src = url
   })
 }
 
@@ -923,9 +964,13 @@ async function handleOCRChange(input) {
   try {
     await loadTesseract()
 
+    // 自動裁切左側 40%（排除 Sparkline 和價格欄）
+    document.getElementById('ocrProgressText').textContent = '裁切圖片中...'
+    const cropped = await cropLeft40(file)
+
     document.getElementById('ocrProgressText').textContent = '辨識文字中，請稍候...'
 
-    const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+    const { data: { text } } = await Tesseract.recognize(cropped, 'eng', {
       logger: m => {
         if (m.status === 'recognizing text') {
           const pct = Math.round((m.progress || 0) * 100)
