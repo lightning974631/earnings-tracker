@@ -253,6 +253,9 @@
     .key-label { font-size:12px; color:rgba(255,255,255,0.45); margin-bottom:5px; }
     .key-links { display:flex; justify-content:space-between; margin-top:14px; }
     .key-links a { font-size:12px; color:rgba(120,170,255,0.85); text-decoration:none; }
+    .t-chip.corrected { background:rgba(255,214,0,0.12) !important; border-color:rgba(255,214,0,0.4) !important; }
+    .t-chip.corrected span { color:#FFD600 !important; }
+    .t-chip.corrected.on { background:rgba(255,214,0,0.2) !important; border-color:rgba(255,214,0,0.55) !important; }
     /* ── UTILS ── */
     .hidden { display: none !important; }
     .update-ts { text-align: center; font-size: 11px; color: #C7C7CC; padding: 6px 0 4px; }
@@ -1027,14 +1030,17 @@ async function handleOCRChange(input) {
     document.getElementById('ocrProgressText').textContent = '上傳至 OCR.space 辨識中...'
     const text = await ocrWithSpace(cropped)
 
-    const tickers = extractTickers(text)
+    const rawTickers = extractTickers(text)
 
-    if (tickers.length === 0) {
+    if (rawTickers.length === 0) {
       toast('未偵測到股票代碼，請使用更清晰的截圖')
       return
     }
 
-    showOCRConfirm(tickers)
+    document.getElementById('ocrProgressText').textContent = 'Finnhub 驗證代碼中...'
+    const validatedTickers = await validateTickers(rawTickers)
+
+    showOCRConfirm(validatedTickers)
 
   } catch (err) {
     toast('⚠️ OCR 失敗：' + (err.message || '未知錯誤'))
@@ -1045,11 +1051,41 @@ async function handleOCRChange(input) {
   }
 }
 
-function showOCRConfirm(tickers) {
+
+// Finnhub 驗證 + 自動修正末尾多餘字元（如 MUG → MU）
+async function validateTickers(tickers) {
+  const apiKey = ls.get('apiKey')
+  // 若無 Finnhub key，直接跳過驗證
+  if (!apiKey || tickers.length === 0)
+    return tickers.map(t => ({ ticker: t, display: t }))
+
+  const results = await Promise.all(tickers.map(async t => {
+    try {
+      // 1. 先查原始 ticker
+      const r1 = await fetch(`${FINN}/stock/profile2?symbol=${t}&token=${apiKey}`)
+      const d1 = await r1.json()
+      if (d1?.name) return { ticker: t, display: t }
+
+      // 2. 不存在 → 去掉最後一個字再查（處理 MUG→MU 這類 OCR 誤讀）
+      if (t.length >= 3) {
+        const trimmed = t.slice(0, -1)
+        const r2 = await fetch(`${FINN}/stock/profile2?symbol=${trimmed}&token=${apiKey}`)
+        const d2 = await r2.json()
+        if (d2?.name) return { ticker: trimmed, display: `${trimmed}（已修正）`, corrected: true }
+      }
+    } catch {}
+    // 查不到也保留，讓用戶自己判斷
+    return { ticker: t, display: t }
+  }))
+
+  return results
+}
+
+function showOCRConfirm(tickerResults) {
   const grid = document.getElementById('tickerGrid')
-  grid.innerHTML = tickers.map(t => `
-    <div class="t-chip on" onclick="toggleChip(this)" data-ticker="${t}">
-      <span>${t}</span>
+  grid.innerHTML = tickerResults.map(({ ticker, display, corrected }) => `
+    <div class="t-chip on${corrected ? ' corrected' : ''}" onclick="toggleChip(this)" data-ticker="${ticker}">
+      <span>${display}</span>
     </div>`).join('')
 
   updateOCRCount()
