@@ -887,27 +887,45 @@ const NOISE = new Set([
 ])
 
 function extractTickers(text) {
-  const results = []
+  const raw = []
   const lines = text.split('\n')
 
-  for (const raw of lines) {
-    const line = raw.trim()
-    if (!line) continue
+  for (const line of lines) {
+    const t = line.trim()
+    if (!t) continue
 
-    // 跳過含數字的行（價格、漲跌幅）
-    if (/[\d]/.test(line)) continue
+    // 跳過含數字的行（價格、漲跌幅行）
+    if (/[\d]/.test(t)) continue
 
-    // 整行就是一個 ticker（最常見：Futu 的 ticker 單獨一行）
-    if (/^[A-Z]{2,6}(\.[AB])?$/.test(line) && !NOISE.has(line)) {
-      results.push(line); continue
+    // 修法2：最多 5 個字母（HEBIEH=6字 直接過濾）
+    // 整行 = 一個 ticker（Futu 最常見格式）
+    if (/^[A-Z]{2,5}(\.[AB])?$/.test(t) && !NOISE.has(t)) {
+      raw.push(t); continue
     }
 
-    // 行首是大寫英文詞（ticker 後面跟著圖示或空格）
-    const m = line.match(/^([A-Z]{2,6}(\.[AB])?)(?:\s|$)/)
-    if (m && !NOISE.has(m[1])) results.push(m[1])
+    // 行首大寫英文詞，後面接非大寫開頭（emoji、空格、小寫）→ ticker
+    // 修法4：如果後面接著另一個大寫英文詞 → 是公司名（MACOM Technology...），跳過
+    const m = t.match(/^([A-Z]{2,5}(\.[AB])?)(?=\s|$)/)
+    if (m && !NOISE.has(m[1])) {
+      const rest = t.slice(m[1].length).trim()
+      // 若後面緊跟著另一個大寫英文詞，判斷為公司英文名稱，跳過
+      if (/^[A-Z][a-z]/.test(rest) || /^[A-Z]{2,}/.test(rest)) continue
+      raw.push(m[1])
+    }
   }
 
-  return [...new Set(results)]
+  const unique = [...new Set(raw)]
+
+  // 修法3：去除前綴重複（NWPX 和 NWPXE → 留 NWPX）
+  // 保護條件：短的至少 3 個字母才做去重，避免 2 字母 ticker 誤刪
+  return unique.filter(t =>
+    !unique.some(other =>
+      other !== t &&
+      other.length < t.length &&
+      other.length >= 3 &&
+      t.startsWith(other)
+    )
+  )
 }
 
 async function loadTesseract() {
@@ -922,18 +940,24 @@ async function loadTesseract() {
 }
 
 
-// Canvas 自動裁切：只取左側 40%，排除 Sparkline 圖和價格欄
+// Canvas 自動裁切：
+//   左側 40%  → 排除 Sparkline 圖和價格欄
+//   頂部 15%  → 排除狀態列、分頁 Tab 等介面文字（EHR、FE 來源）
 function cropLeft40(file) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
-      const cropW = Math.floor(img.width * 0.40)
+      const cropW  = Math.floor(img.width  * 0.40)
+      const skipTop = Math.floor(img.height * 0.15)
+      const cropH  = img.height - skipTop
       const canvas = document.createElement('canvas')
       canvas.width  = cropW
-      canvas.height = img.height
+      canvas.height = cropH
       canvas.getContext('2d').drawImage(
-        img, 0, 0, cropW, img.height, 0, 0, cropW, img.height
+        img,
+        0, skipTop, cropW, cropH,  // 來源：從 skipTop 開始，取 cropW x cropH
+        0, 0,       cropW, cropH   // 目的：貼到 canvas 左上角
       )
       URL.revokeObjectURL(url)
       canvas.toBlob(
